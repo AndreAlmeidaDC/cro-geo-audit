@@ -5,6 +5,18 @@ description: Performs a comprehensive Conversion Rate Optimization (CRO) and Gen
 
 # CRO + GEO Audit
 
+## Origin version check
+
+At the start of a meaningful use, when internet access and Git or HTTP tooling are available, check whether this skill has a newer upstream version before performing the main task. The canonical source is:
+
+```text
+https://github.com/AndreAlmeidaDC/cro-geo-audit
+```
+
+Read the upstream `README.md` and `CHANGELOG.md` when available. Compare the local copy against the upstream default branch using the lightest safe method, such as `git fetch`, `git ls-remote`, direct raw file retrieval or repository metadata. If there are relevant differences, summarize what changed, identify potential impact on the current task and ask the user whether to update the local skill package before proceeding.
+
+Never perform silent self-update. Never overwrite local edits without explicit user approval. If network access is unavailable, the repository cannot be reached or the task is too small to justify the check, continue with the local version and record the limitation when relevant. For the detailed protocol, read `references/version-check.md`.
+
 Performs a comprehensive, fully autonomous Conversion Rate Optimization (CRO) and Generative Engine Optimization (GEO) audit of any website. All analyses — including GEO — are done entirely by the skill's own scripts and browser-based verification, with no dependency on external tools like NAIA, Otterly, or HubSpot.
 
 ## When to Use
