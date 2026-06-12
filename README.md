@@ -4,7 +4,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Manus Skill](https://img.shields.io/badge/Manus-Skill-purple.svg)](SKILL.md)
+[![Agent Skill](https://img.shields.io/badge/Agent-Skill-purple.svg)](SKILL.md)
 
 ---
 
@@ -24,7 +24,7 @@ A análise GEO é totalmente independente — não depende de ferramentas extern
 ```
 cro-geo-audit/
 ├── README.md                              # Este arquivo
-├── SKILL.md                               # Instruções para uso como Manus Skill
+├── SKILL.md                               # Instruções para uso como Agent Skill
 ├── LICENSE                                # Licença MIT
 ├── docs/
 │   └── ARCHITECTURE.md                    # Arquitetura técnica detalhada
@@ -197,22 +197,37 @@ Exemplo de execução no site revisaconta.com.br:
 
 ## Requisitos
 
-- **Python 3.8+** (usa apenas bibliotecas padrão — sem dependências externas)
+- **Python 3.8+**
 - Acesso à internet para buscar as páginas do site alvo
 
-Nenhuma instalação de pacotes é necessária. Os scripts utilizam exclusivamente a biblioteca padrão do Python (`urllib`, `ssl`, `json`, `re`, `html.parser`).
+Três dos quatro scripts usam exclusivamente a biblioteca padrão do Python (`urllib`, `ssl`, `json`, `re`, `html.parser`). O `seo_meta_check.py` requer `requests` e `beautifulsoup4`:
+
+```bash
+pip install -r requirements.txt
+```
+
+Se as dependências não estiverem disponíveis, o script falha com um erro JSON estruturado e a skill aplica o fallback documentado no SKILL.md (inspeção das páginas via ferramenta HTTP da plataforma).
 
 ---
 
-## Uso como Manus Skill
+## Uso como Agent Skill (multiplataforma)
 
-Este repositório é compatível com o sistema de Skills do [Manus AI](https://manus.im). Para usar como skill:
+Este repositório segue o formato Agent Skill (um `SKILL.md` com instruções e arquivos de apoio) e roda em qualquer plataforma de agentes que leia esse formato. A skill detecta as capacidades do ambiente na Fase 0 e adapta as fases dependentes de browser e de conversão de PDF com fallbacks documentados (veja `references/environment-adapters.md`).
 
+**Claude (claude.ai / Claude Code):**
+1. Faça download do repositório
+2. Adicione a pasta como skill (em claude.ai: Settings > Capabilities > Skills; no Claude Code: pasta de skills do projeto)
+3. O Claude detecta a skill pelo `SKILL.md`
+
+**Manus:**
 1. Faça download do repositório
 2. Coloque em `/home/ubuntu/skills/cro-geo-audit/`
-3. O Manus detectará automaticamente o skill pelo `SKILL.md`
+3. O Manus detecta a skill pelo `SKILL.md`
 
-Consulte o arquivo [SKILL.md](SKILL.md) para o workflow completo de 7 fases da auditoria.
+**Outras plataformas:**
+Qualquer agente com execução de Python e acesso HTTP consegue rodar o fluxo completo. Sem browser interativo, as Fases 4 e 5 operam nos modos de fallback descritos no `SKILL.md`.
+
+Consulte o arquivo [SKILL.md](SKILL.md) para o workflow completo de 8 fases da auditoria.
 
 ---
 

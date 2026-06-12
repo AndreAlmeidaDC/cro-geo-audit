@@ -8,8 +8,18 @@ Output: JSON report to stdout.
 
 import sys
 import json
-import requests
-from bs4 import BeautifulSoup
+
+try:
+    import requests
+    from bs4 import BeautifulSoup
+except ImportError as exc:
+    print(json.dumps({
+        "error": "missing_dependency",
+        "detail": str(exc),
+        "fix": "pip install -r requirements.txt (add --break-system-packages on externally managed environments)",
+        "fallback": "Fetch each page with the platform HTTP tool and inspect title, meta description, canonical, Open Graph, H1 count and JSON-LD presence manually. Mark per-page numeric SEO scores as not computed.",
+    }, ensure_ascii=False, indent=2))
+    sys.exit(2)
 
 def analyze_page(url: str) -> dict:
     """Extract and evaluate SEO meta data from a single page."""
