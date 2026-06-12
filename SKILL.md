@@ -154,7 +154,7 @@ The script performs **6 autonomous analyses**:
 - **`allowed`**: No blocking rules, or explicit `Allow: /` with no restrictions
 - **`allowed_restricted`**: `Allow: /` is present but specific paths are blocked (e.g., `/dashboard`). This is correct behavior and does NOT count as blocked
 - **`blocked`**: `Disallow: /` without a corresponding `Allow: /`
-- Correctly handles the precedence: specific agent rules override wildcard (`*`) rules
+- Correctly handles the precedence: specific agent rules take priority over wildcard (`*`) rules
 - Identifies critical vs non-critical crawlers
 - **Scoring**: 25 points max. Deducts 5 points per critical crawler blocked, 2 per non-critical. `allowed_restricted` crawlers are NOT penalized
 

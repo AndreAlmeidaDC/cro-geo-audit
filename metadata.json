@@ -2,14 +2,28 @@
   "name": "cro-geo-audit",
   "title": "CRO + GEO Audit Toolkit",
   "description": "Skill para auditoria autônoma de CRO e GEO em websites.",
-  "version": "2026.06.12",
+  "version": "2026.06.11",
   "maturity": "stable",
   "origin_url": "https://github.com/AndreAlmeidaDC/cro-geo-audit",
   "origin_git_url": "https://github.com/AndreAlmeidaDC/cro-geo-audit.git",
   "default_branch": "main",
   "author": "André Almeida",
   "license": "MIT",
-  "last_standardized_at": "2026-06-12 14:07 GMT-3",
+  "declared_capabilities": {
+    "network_egress": {
+      "expected": true,
+      "reason": "Fetches and analyzes the target website, its robots.txt and sitemap, and public AI-search and directory endpoints. Core to a web audit."
+    },
+    "subprocess": {
+      "expected": true,
+      "reason": "Calls curl via subprocess with structured argument lists (no shell=True) to measure timing, headers and SSL."
+    },
+    "dependency_install": {
+      "expected": true,
+      "reason": "seo_meta_check.py requires requests and beautifulsoup4, installed from a pinned requirements.txt."
+    }
+  },
+  "last_standardized_at": "2026-06-11 GMT-3",
   "required_files": [
     "SKILL.md",
     "README.md",

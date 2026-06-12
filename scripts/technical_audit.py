@@ -4,6 +4,13 @@ Technical Audit Script for CRO/GEO Analysis.
 Runs automated checks on a target URL: performance, headers, robots.txt, sitemap, SSL.
 Usage: python technical_audit.py <url>
 Output: JSON report to stdout.
+
+Security note on subprocess usage:
+This script calls `curl` via subprocess.run with an argument LIST (never a shell
+string) and never uses shell=True. The target URL is passed as an isolated list
+element, so it cannot be interpreted as a shell command or inject extra arguments.
+Each call sets an explicit timeout. This is a deliberate, allowlisted command with
+structured arguments, not dynamic code execution.
 """
 
 import sys
