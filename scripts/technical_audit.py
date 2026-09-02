@@ -1,220 +1,113 @@
 #!/usr/bin/env python3
-"""
-Technical Audit Script for CRO/GEO Analysis.
-Runs automated checks on a target URL: performance, headers, robots.txt, sitemap, SSL.
-Usage: python technical_audit.py <url>
-Output: JSON report to stdout.
+"""Collect transport, header, robots and sitemap evidence without synthetic scores."""
+from __future__ import annotations
 
-Security note on subprocess usage:
-This script calls `curl` via subprocess.run with an argument LIST (never a shell
-string) and never uses shell=True. The target URL is passed as an isolated list
-element, so it cannot be interpreted as a shell command or inject extra arguments.
-Each call sets an explicit timeout. This is a deliberate, allowlisted command with
-structured arguments, not dynamic code execution.
-"""
-
-import sys
+import argparse
 import json
-import time
-import ssl
-import socket
-from urllib.parse import urlparse
-import subprocess
+import sys
+from datetime import datetime, timezone
+from typing import Any
 
-def run_curl_timing(url: str) -> dict:
-    """Measure response times via curl."""
-    fmt = json.dumps({
-        "dns_lookup": "%{time_namelookup}",
-        "tcp_connect": "%{time_connect}",
-        "ssl_handshake": "%{time_appconnect}",
-        "ttfb": "%{time_starttransfer}",
-        "total": "%{time_total}",
-        "http_code": "%{http_code}",
-        "size_download": "%{size_download}",
-        "speed_download": "%{speed_download}",
-    })
-    try:
-        result = subprocess.run(
-            ["curl", "-o", "/dev/null", "-s", "-w", fmt, "-L", "--max-time", "15", url],
-            capture_output=True, text=True, timeout=20
-        )
-        data = json.loads(result.stdout)
-        return {k: float(v) if k != "http_code" else int(float(v)) for k, v in data.items()}
-    except Exception as e:
-        return {"error": str(e)}
+from audit_common import FetchResult, evidence, fetch_text, join_origin, validate_public_url
 
-def get_headers(url: str) -> dict:
-    """Fetch HTTP response headers."""
-    try:
-        result = subprocess.run(
-            ["curl", "-sI", "-L", "--max-time", "10", url],
-            capture_output=True, text=True, timeout=15
-        )
-        headers = {}
-        for line in result.stdout.strip().split("\n"):
-            if ":" in line:
-                key, val = line.split(":", 1)
-                headers[key.strip().lower()] = val.strip()
-        return headers
-    except Exception as e:
-        return {"error": str(e)}
+SCHEMA_VERSION = "3.0"
+SECURITY_HEADERS = {
+    "strict-transport-security": "HSTS is relevant only on HTTPS responses and should be evaluated with max-age and includeSubDomains context.",
+    "content-security-policy": "Presence alone does not prove an effective policy; inspect directives and report-only versus enforced mode.",
+    "x-content-type-options": "Commonly expected as nosniff.",
+    "referrer-policy": "Evaluate value and product needs; presence alone is not a grade.",
+    "permissions-policy": "Evaluate allowed features against actual product requirements.",
+    "cross-origin-opener-policy": "Useful for isolation in some applications; applicability is contextual.",
+}
 
-def check_security_headers(headers: dict) -> list:
-    """Evaluate security headers presence."""
-    checks = [
-        ("strict-transport-security", "HSTS"),
-        ("x-content-type-options", "X-Content-Type-Options"),
-        ("x-frame-options", "X-Frame-Options"),
-        ("content-security-policy", "CSP"),
-        ("referrer-policy", "Referrer-Policy"),
-        ("permissions-policy", "Permissions-Policy"),
-        ("x-xss-protection", "X-XSS-Protection"),
-    ]
-    results = []
-    for header_key, label in checks:
-        present = header_key in headers
-        results.append({
-            "header": label,
-            "present": present,
-            "value": headers.get(header_key, ""),
-            "severity": "low" if present else ("high" if label in ["HSTS", "CSP"] else "medium"),
-        })
-    return results
 
-def check_robots_txt(url: str) -> dict:
-    """Fetch and analyze robots.txt for AI crawler blocking."""
-    robots_url = url.rstrip("/") + "/robots.txt"
-    try:
-        result = subprocess.run(
-            ["curl", "-s", "--max-time", "10", robots_url],
-            capture_output=True, text=True, timeout=15
-        )
-        content = result.stdout
-        ai_bots = [
-            "GPTBot", "Google-Extended", "ChatGPT-User", "CCBot",
-            "anthropic-ai", "ClaudeBot", "Bytespider", "Amazonbot",
-            "FacebookBot", "PerplexityBot", "Applebot-Extended", "Cohere-ai"
-        ]
-        blocked = []
-        allowed = []
-        for bot in ai_bots:
-            if bot.lower() in content.lower():
-                lines = content.lower().split("\n")
-                is_blocked = any("disallow: /" in l for l in lines if bot.lower() in "".join(lines[max(0, lines.index(l)-3):lines.index(l)+1]))
-                if is_blocked or f"user-agent: {bot.lower()}" in content.lower():
-                    blocked.append(bot)
-                else:
-                    allowed.append(bot)
-            else:
-                allowed.append(bot)
-        # Simple heuristic: check for blanket disallow after specific user-agents
-        blanket_blocks = content.lower().count("disallow: /\n")
-        user_agents_count = content.lower().count("user-agent:")
-        return {
-            "exists": len(content) > 10,
-            "content_length": len(content),
-            "ai_bots_total": len(ai_bots),
-            "ai_bots_blocked": blocked,
-            "ai_bots_allowed": allowed,
-            "blocked_count": len(blocked),
-            "allowed_count": len(allowed),
-            "blanket_disallow_count": blanket_blocks,
-            "user_agents_count": user_agents_count,
-        }
-    except Exception as e:
-        return {"exists": False, "error": str(e)}
+def _header_observations(headers: dict[str, str]) -> dict[str, Any]:
+    output: dict[str, Any] = {}
+    for name, note in SECURITY_HEADERS.items():
+        output[name] = evidence("observed", "http_response_headers", "high", "response", {
+            "present": name in headers,
+            "value": headers.get(name, ""),
+        }, note)
+    frame_protection = bool(headers.get("x-frame-options")) or "frame-ancestors" in headers.get("content-security-policy", "").lower()
+    output["frame_embedding_control"] = evidence(
+        "observed", "http_response_headers", "high", "response",
+        {"present": frame_protection, "x_frame_options": headers.get("x-frame-options", ""),
+         "csp_has_frame_ancestors": "frame-ancestors" in headers.get("content-security-policy", "").lower()},
+        "Either CSP frame-ancestors or X-Frame-Options may provide framing control; policy semantics require manual review.",
+    )
+    return output
 
-def check_sitemap(url: str) -> dict:
-    """Check sitemap.xml existence and basic stats."""
-    sitemap_url = url.rstrip("/") + "/sitemap.xml"
-    try:
-        result = subprocess.run(
-            ["curl", "-s", "--max-time", "10", "-o", "/dev/null", "-w", "%{http_code}", sitemap_url],
-            capture_output=True, text=True, timeout=15
-        )
-        code = int(result.stdout.strip())
-        if code == 200:
-            content = subprocess.run(
-                ["curl", "-s", "--max-time", "10", sitemap_url],
-                capture_output=True, text=True, timeout=15
-            ).stdout
-            url_count = content.lower().count("<url>") or content.lower().count("<loc>")
-            return {"exists": True, "http_code": code, "url_count": url_count}
-        return {"exists": False, "http_code": code}
-    except Exception as e:
-        return {"exists": False, "error": str(e)}
 
-def check_ssl(hostname: str) -> dict:
-    """Check SSL certificate validity and expiration."""
-    try:
-        ctx = ssl.create_default_context()
-        with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
-            s.settimeout(10)
-            s.connect((hostname, 443))
-            cert = s.getpeercert()
-            return {
-                "valid": True,
-                "issuer": dict(x[0] for x in cert.get("issuer", [])).get("organizationName", "Unknown"),
-                "expires": cert.get("notAfter", "Unknown"),
-                "subject": dict(x[0] for x in cert.get("subject", [])).get("commonName", "Unknown"),
-            }
-    except Exception as e:
-        return {"valid": False, "error": str(e)}
-
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python technical_audit.py <url>")
-        sys.exit(1)
-
-    url = sys.argv[1]
-    if not url.startswith("http"):
-        url = "https://" + url
-
-    hostname = urlparse(url).hostname
-    print(json.dumps({"status": "starting", "url": url}, indent=2), file=sys.stderr)
-
-    report = {
-        "url": url,
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "performance": run_curl_timing(url),
-        "headers": {},
-        "security_headers": [],
-        "robots_txt": {},
-        "sitemap": {},
-        "ssl": {},
+def assemble_report(url: str, page: FetchResult, robots: FetchResult, sitemap: FetchResult) -> dict[str, Any]:
+    transport_status = "measured" if page.status is not None or page.error_type else "not_measured"
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "methodology": {
+            "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "mode": "single-request laboratory observation",
+            "does_not_measure": [
+                "Core Web Vitals", "real-user performance", "conversion", "security exploitability",
+                "search ranking", "AI citation or visibility",
+            ],
+        },
+        "target": url,
+        "transport": evidence(
+            transport_status, "verified_http_fetch", "high" if page.transport_verified else "low", "request",
+            {"requested_url": page.requested_url, "final_url": page.final_url, "status": page.status,
+             "transport_verified": page.transport_verified, "error_type": page.error_type},
+            page.error or "TLS is verified with the platform trust store; certificate failures are reported, never bypassed.",
+        ),
+        "single_request_timing": evidence(
+            "measured" if page.elapsed_ms is not None else "not_measured", "single_http_request", "low", "request",
+            {"elapsed_ms": page.elapsed_ms},
+            "This is not a Core Web Vitals measurement and must not be used as field performance or user-experience evidence.",
+        ),
+        "response_headers": evidence("observed", "http_response_headers", "high", "response", page.headers),
+        "security_header_observations": _header_observations(page.headers),
+        "robots_fetch": evidence(
+            "observed" if robots.status is not None else "not_measured", "verified_http_fetch",
+            "high" if robots.transport_verified else "low", "site",
+            {"status": robots.status, "final_url": robots.final_url, "bytes": len(robots.body.encode("utf-8")),
+             "truncated": robots.truncated}, robots.error or "",
+        ),
+        "sitemap_fetch": evidence(
+            "observed" if sitemap.status is not None else "not_measured", "verified_http_fetch",
+            "high" if sitemap.transport_verified else "low", "site",
+            {"status": sitemap.status, "final_url": sitemap.final_url, "bytes": len(sitemap.body.encode("utf-8")),
+             "truncated": sitemap.truncated}, sitemap.error or "",
+        ),
+        "recommended_follow_up": [
+            "Use CrUX or another field-data source for Core Web Vitals when available.",
+            "Use a controlled browser run for rendering, interaction and laboratory performance diagnostics.",
+            "Review security-header values and application context; presence/absence is not a security assessment.",
+        ],
     }
 
-    raw_headers = get_headers(url)
-    report["headers"] = raw_headers
-    report["security_headers"] = check_security_headers(raw_headers)
-    report["robots_txt"] = check_robots_txt(url)
-    report["sitemap"] = check_sitemap(url)
-    report["ssl"] = check_ssl(hostname)
 
-    # Calculate scores
-    perf = report["performance"]
-    if "error" not in perf:
-        ttfb = perf.get("ttfb", 5)
-        total = perf.get("total", 10)
-        perf_score = max(0, min(100, int(100 - (ttfb * 30) - (total * 5))))
-    else:
-        perf_score = 0
+def run(url: str, allow_private: bool = False, timeout: float = 15.0) -> dict[str, Any]:
+    target = validate_public_url(url, allow_private=allow_private)
+    page = fetch_text(target, timeout=timeout, allow_private=allow_private)
+    robots = fetch_text(join_origin(target, "/robots.txt"), timeout=timeout, allow_private=allow_private)
+    sitemap = fetch_text(join_origin(target, "/sitemap.xml"), timeout=timeout, allow_private=allow_private)
+    return assemble_report(target, page, robots, sitemap)
 
-    sec_present = sum(1 for h in report["security_headers"] if h["present"])
-    sec_score = int((sec_present / len(report["security_headers"])) * 100) if report["security_headers"] else 0
 
-    robots = report["robots_txt"]
-    geo_blocked = robots.get("blocked_count", 0)
-    geo_total = robots.get("ai_bots_total", 12)
-    geo_score = max(0, int(((geo_total - geo_blocked) / geo_total) * 100)) if geo_total > 0 else 0
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Collect technical evidence without synthetic performance, security or GEO scores.")
+    parser.add_argument("url")
+    parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument("--allow-private", action="store_true", help="Explicitly allow private/internal targets. Off by default to prevent SSRF.")
+    args = parser.parse_args()
+    try:
+        report = run(args.url, args.allow_private, args.timeout)
+    except ValueError as exc:
+        json.dump({"schema_version": SCHEMA_VERSION, "status": "not_measured", "error": str(exc)}, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 2
+    json.dump(report, sys.stdout, ensure_ascii=False, indent=2)
+    sys.stdout.write("\n")
+    return 0
 
-    report["scores"] = {
-        "performance": perf_score,
-        "security": sec_score,
-        "geo_visibility": geo_score,
-    }
-
-    json.dump(report, sys.stdout, indent=2, ensure_ascii=False)
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

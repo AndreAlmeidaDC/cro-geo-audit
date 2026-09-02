@@ -1,9 +1,9 @@
 {
   "name": "cro-geo-audit",
-  "title": "CRO + GEO Audit Toolkit",
-  "description": "Skill para auditoria autônoma de CRO e GEO em websites.",
-  "version": "2026.06.11",
-  "maturity": "stable",
+  "title": "CRO + Search/AI Discovery Evidence Audit",
+  "description": "Evidence-based audit of website conversion experience, search readiness and AI-discovery signals without synthetic GEO or CRO scores.",
+  "version": "2026.09.02",
+  "maturity": "beta",
   "origin_url": "https://github.com/AndreAlmeidaDC/cro-geo-audit",
   "origin_git_url": "https://github.com/AndreAlmeidaDC/cro-geo-audit.git",
   "default_branch": "main",
@@ -12,37 +12,39 @@
   "declared_capabilities": {
     "network_egress": {
       "expected": true,
-      "reason": "Fetches and analyzes the target website, its robots.txt and sitemap, and public AI-search and directory endpoints. Core to a web audit."
+      "reason": "Fetches the user-approved target website, redirects, robots.txt and sitemap over verified HTTP(S)."
     },
     "subprocess": {
-      "expected": true,
-      "reason": "Calls curl via subprocess with structured argument lists (no shell=True) to measure timing, headers and SSL."
+      "expected": false,
+      "reason": "Collectors use Python standard-library HTTP clients and do not shell out."
     },
     "dependency_install": {
-      "expected": true,
-      "reason": "seo_meta_check.py requires requests and beautifulsoup4, installed from a pinned requirements.txt."
+      "expected": false,
+      "reason": "Collectors and tests use only the Python standard library."
     }
   },
-  "last_standardized_at": "2026-06-11 GMT-3",
-  "required_files": [
-    "SKILL.md",
-    "README.md",
-    "CHANGELOG.md",
-    "CONTRIBUTING.md",
-    "GOVERNANCE.md",
-    "metadata.json",
-    "references/version-check.md",
-    "references/",
-    "templates/",
-    "scripts/"
+  "security_model": {
+    "tls_verification": "required",
+    "private_network_targets": "deny-by-default",
+    "redirect_revalidation": true,
+    "max_response_bytes": 5000000,
+    "external_mutation": "requires-explicit-authorization",
+    "form_submission": "requires-explicit-authorization-and-test-data"
+  },
+  "evidence_statuses": ["observed", "measured", "inferred", "not_measured"],
+  "prohibited_claims": [
+    "universal GEO score",
+    "ranking guarantee",
+    "citation probability from static proxies",
+    "conversion rate without first-party data",
+    "Core Web Vitals from a single request"
   ],
+  "last_standardized_at": "2026-09-02 GMT-3",
   "update_policy": {
     "check_upstream_on_meaningful_use": true,
-    "read_upstream_readme": true,
-    "read_upstream_changelog": true,
-    "summarize_changes_before_update": true,
     "requires_user_consent": true,
     "silent_self_update_allowed": false,
+    "execute_remote_update_scripts": false,
     "overwrite_local_changes_allowed_without_consent": false
   }
 }

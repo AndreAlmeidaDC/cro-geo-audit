@@ -1,95 +1,53 @@
-# CRO Checklist
+# CRO and UX evidence checklist
 
-## Table of Contents
-1. Homepage / Landing Page
-2. Proposta de Valor e Copy
-3. CTAs e Botões
-4. Formulários e Cadastro
-5. Funil de Conversão
-6. Prova Social e Confiança
-7. Preços e Pagamento
-8. Blog e Conteúdo
-9. Mobile e Responsividade
-10. Acessibilidade
+This checklist generates findings and hypotheses, not conversion claims.
 
----
+## Business and funnel context
 
-## 1. Homepage / Landing Page
-- [ ] Hero section comunica a proposta de valor em < 5 segundos
-- [ ] Headline usa linguagem do público-alvo (não jargão técnico)
-- [ ] CTA principal visível above the fold sem scroll
-- [ ] Simulador ou ferramenta interativa no topo para engajar
-- [ ] Preço visível antes de exigir cadastro
-- [ ] Imagens reais (não genéricas de banco de imagem)
-- [ ] Velocidade de carregamento < 3s (LCP)
+- Primary conversion and user intent are defined.
+- Funnel stages and success events are known.
+- Analytics coverage and date range are declared.
+- Traffic source, device, locale and audience segment are separated when data permits.
 
-## 2. Proposta de Valor e Copy
-- [ ] Benefício claro em vez de funcionalidade ("Economize R$ 500" vs "Auditoria de faturas")
-- [ ] Linguagem compatível com o público-alvo (classe C/D = simples e direta)
-- [ ] Evitar termos técnicos: "auditoria", "contestação", "dossiê", "divergência"
-- [ ] Usar termos populares: "verificar", "descobrir", "receber de volta", "erro na conta"
-- [ ] Números concretos e específicos (não "milhares de clientes")
-- [ ] Urgência ou escassez quando aplicável
+## Value and decision clarity
 
-## 3. CTAs e Botões
-- [ ] Texto de CTA orientado a ação ("Descubra agora" > "Saiba mais")
-- [ ] Cor contrastante com o fundo
-- [ ] Tamanho mínimo 44x44px para mobile
-- [ ] Máximo 2 CTAs diferentes por página (evitar paralisia)
-- [ ] Todos os CTAs levam a destinos funcionais (sem 404)
-- [ ] Microcopy abaixo do CTA reduz fricção ("Sem cartão de crédito")
+- The page states what is offered, for whom and what happens next.
+- Claims, price, conditions and limitations are accurate and internally consistent.
+- The primary action is distinguishable from secondary actions.
+- The page answers material objections without hiding known answers.
 
-## 4. Formulários e Cadastro
-- [ ] Mínimo de campos possível (ideal: email + senha ou login social)
-- [ ] Login social (Google, Apple) disponível
-- [ ] Validação em tempo real (não só ao submeter)
-- [ ] Mensagens de erro claras e específicas
-- [ ] "Esqueci minha senha" presente e funcional
-- [ ] Cadastro NÃO é pré-requisito para ver preço/produto
-- [ ] Campos de telefone são opcionais ou pedidos depois
+A reviewer may label these as heuristic observations. “Understood in five seconds” requires an actual comprehension test.
 
-## 5. Funil de Conversão
-- [ ] Mapear cada etapa: Visitante → Interesse → Preço → Pagamento → Cadastro → Uso
-- [ ] Preço revelado ANTES do cadastro
-- [ ] Checkout simplificado (máximo 3 etapas)
-- [ ] Indicador de progresso no checkout
-- [ ] Opção de pagamento sem criar conta (guest checkout)
-- [ ] Recuperação de carrinho abandonado (email/WhatsApp)
+## Interaction and forms
 
-## 6. Prova Social e Confiança
-- [ ] Depoimentos reais com nome, foto e resultado específico
-- [ ] Números de prova social significativos (> 1.000 para credibilidade)
-- [ ] Logos de parceiros, mídia ou certificações
-- [ ] Garantia explícita ("Dinheiro de volta se não encontrarmos erros")
-- [ ] Selo de segurança no checkout
-- [ ] Avaliações externas (Google, Reclame Aqui, Trustpilot)
+- CTA destinations work.
+- Forms expose labels, error states, privacy context and a clear success state.
+- Field necessity is justified by the task and stage.
+- Authentication, social login, guest checkout and progress indicators are evaluated only when relevant to the product.
+- Testing does not submit real personal data without authorization.
 
-## 7. Preços e Pagamento
-- [ ] Preço visível e claro (sem asteriscos escondidos)
-- [ ] Ancoragem de preço (mostrar valor que pode recuperar vs custo)
-- [ ] Múltiplos métodos de pagamento (Pix, cartão, boleto)
-- [ ] Integração com gateway local (Mercado Pago, PagSeguro)
-- [ ] Cupons e descontos funcionais
-- [ ] Plano único e simples (evitar 3+ planos que confundem)
+## Trust and evidence
 
-## 8. Blog e Conteúdo
-- [ ] Artigos com imagens funcionais (sem links quebrados)
-- [ ] CTAs dentro dos artigos levando ao produto
-- [ ] Conteúdo otimizado para SEO (title, meta, headings)
-- [ ] Conteúdo citável por IAs (dados, tabelas, estatísticas)
-- [ ] Frequência mínima de publicação (2-4x/mês)
+- Testimonials, counts, logos, certifications and guarantees are verifiable and scoped.
+- Urgency and scarcity are factual.
+- Security claims distinguish transport, payment-provider and application controls.
+- Legal and privacy language matches actual data flows.
 
-## 9. Mobile e Responsividade
-- [ ] Todos os elementos clicáveis ≥ 44px
-- [ ] Formulários adaptados para teclado mobile
-- [ ] Sem scroll horizontal
-- [ ] Menu hamburger funcional
-- [ ] Imagens responsivas (não cortadas)
-- [ ] Velocidade mobile < 4s
+## Mobile and accessibility
 
-## 10. Acessibilidade
-- [ ] Contraste mínimo WCAG AA (4.5:1 para texto)
-- [ ] Alt text em todas as imagens
-- [ ] Navegação por teclado funcional
-- [ ] Labels em todos os campos de formulário
-- [ ] Hierarquia de headings correta (h1 > h2 > h3)
+- Important tasks work at representative mobile widths.
+- Keyboard, focus, labels, contrast, zoom/reflow and reduced motion are checked.
+- Media has alternatives where required.
+- Automated tools supplement, not replace, manual accessibility review.
+
+## Performance
+
+- Field data is preferred for user-experience claims.
+- Lab runs record device, network, location, cache state and tool version.
+- A server response time is not Core Web Vitals.
+
+## Measurement
+
+- Conversion, abandonment and uplift require first-party events or experiments.
+- Recommendations without behavioral data are labeled hypotheses.
+- Each experiment defines primary metric, guardrails, sample assumptions and stopping rule.
