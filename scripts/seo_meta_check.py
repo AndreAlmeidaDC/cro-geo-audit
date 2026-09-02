@@ -1,177 +1,104 @@
 #!/usr/bin/env python3
-"""
-SEO Meta Tag Checker for CRO/GEO Analysis.
-Extracts and evaluates meta tags, Open Graph, Schema.org JSON-LD from a list of URLs.
-Usage: python seo_meta_check.py <url1> [url2] [url3] ...
-Output: JSON report to stdout.
-"""
+"""Collect page-level SEO surface evidence without a synthetic SEO score."""
+from __future__ import annotations
 
-import sys
+import argparse
 import json
+import sys
+from datetime import datetime, timezone
+from typing import Any
 
-try:
-    import requests
-    from bs4 import BeautifulSoup
-except ImportError as exc:
-    print(json.dumps({
-        "error": "missing_dependency",
-        "detail": str(exc),
-        "fix": "pip install -r requirements.txt (add --break-system-packages on externally managed environments)",
-        "fallback": "Fetch each page with the platform HTTP tool and inspect title, meta description, canonical, Open Graph, H1 count and JSON-LD presence manually. Mark per-page numeric SEO scores as not computed.",
-    }, ensure_ascii=False, indent=2))
-    sys.exit(2)
+from audit_common import FetchResult, evidence, fetch_text, validate_public_url
+from geo_audit import analyze_html
 
-def analyze_page(url: str) -> dict:
-    """Extract and evaluate SEO meta data from a single page."""
-    try:
-        resp = requests.get(url, timeout=15, headers={
-            "User-Agent": "Mozilla/5.0 (compatible; CROAuditBot/1.0)"
+SCHEMA_VERSION = "3.0"
+
+
+def _findings(surface: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    title = surface["title"]["value"]
+    description = surface["meta_description"]["value"]
+    canonical = surface["canonical"]["value"]
+    headings = surface["headings"]["value"]["counts"]
+    json_ld = surface["json_ld"]["value"]
+    images_without_alt = surface["structured_elements"]["value"]["images_without_alt_attribute"]
+
+    if not title:
+        items.append({"severity": "high", "status": "observed", "finding": "Missing HTML title",
+                      "recommendation": "Add a page-specific title that identifies the entity and intent."})
+    if not description:
+        items.append({"severity": "medium", "status": "observed", "finding": "Missing meta description",
+                      "recommendation": "Add an accurate page-specific description; snippet selection remains engine-controlled."})
+    if not canonical:
+        items.append({"severity": "medium", "status": "observed", "finding": "Canonical link not observed",
+                      "recommendation": "Confirm whether a self-referencing or cross-page canonical is appropriate for this URL."})
+    if headings.get("h1", 0) != 1:
+        items.append({"severity": "medium", "status": "observed", "finding": f"Observed H1 count: {headings.get('h1', 0)}",
+                      "recommendation": "Review the page's primary heading and semantic outline in rendered output."})
+    if json_ld["invalid_blocks"]:
+        items.append({"severity": "high", "status": "observed", "finding": f"Invalid JSON-LD blocks: {json_ld['invalid_blocks']}",
+                      "recommendation": "Repair JSON-LD and verify that marked-up claims match visible content."})
+    if images_without_alt:
+        items.append({"severity": "medium", "status": "observed", "finding": f"Images without an alt attribute: {images_without_alt}",
+                      "recommendation": "Add useful alternatives for informative images and empty alt text for decorative images."})
+    return items
+
+
+def analyze_fetches(fetches: list[FetchResult]) -> dict[str, Any]:
+    pages: list[dict[str, Any]] = []
+    for item in fetches:
+        if item.body:
+            surface = analyze_html(item.body, item.final_url or item.requested_url)
+            findings = _findings(surface)
+        else:
+            surface = {"status": evidence("not_measured", "rendered_html", "low", "page", None,
+                                          "No page body was available for analysis.")}
+            findings = [{"severity": "high", "status": "not_measured", "finding": "Page HTML unavailable",
+                         "recommendation": "Resolve transport or rendering access, then repeat the audit."}]
+        pages.append({
+            "url": item.requested_url,
+            "fetch": evidence(
+                "observed" if item.status is not None else "not_measured", "verified_http_fetch",
+                "high" if item.transport_verified else "low", "page",
+                {"status": item.status, "final_url": item.final_url, "transport_verified": item.transport_verified,
+                 "truncated": item.truncated}, item.error or "",
+            ),
+            "surface": surface,
+            "findings": findings,
         })
-        soup = BeautifulSoup(resp.text, "html.parser")
-    except Exception as e:
-        return {"url": url, "error": str(e)}
-
-    result = {"url": url, "status_code": resp.status_code}
-
-    # Title
-    title_tag = soup.find("title")
-    title = title_tag.get_text(strip=True) if title_tag else ""
-    result["title"] = {
-        "value": title,
-        "length": len(title),
-        "ok": 30 <= len(title) <= 65,
-        "issue": "" if 30 <= len(title) <= 65 else (
-            "Muito curto (< 30 chars)" if len(title) < 30 else "Muito longo (> 65 chars)"
-        ),
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "methodology": {
+            "claim": "page-level observable metadata and semantic surface",
+            "does_not_measure": ["ranking", "indexation", "click-through rate", "AI citation probability"],
+        },
+        "pages": pages,
     }
 
-    # Meta description
-    desc_tag = soup.find("meta", attrs={"name": "description"})
-    desc = desc_tag.get("content", "") if desc_tag else ""
-    result["meta_description"] = {
-        "value": desc,
-        "length": len(desc),
-        "ok": 120 <= len(desc) <= 160,
-        "issue": "" if 120 <= len(desc) <= 160 else (
-            "Ausente ou muito curta" if len(desc) < 120 else "Muito longa (> 160 chars)"
-        ),
-    }
 
-    # Canonical
-    canonical = soup.find("link", rel="canonical")
-    result["canonical"] = {
-        "value": canonical.get("href", "") if canonical else "",
-        "present": canonical is not None,
-    }
+def run(urls: list[str], allow_private: bool = False, timeout: float = 15.0) -> dict[str, Any]:
+    fetches = [fetch_text(validate_public_url(url, allow_private=allow_private), timeout=timeout,
+                          allow_private=allow_private) for url in urls]
+    return analyze_fetches(fetches)
 
-    # Viewport
-    viewport = soup.find("meta", attrs={"name": "viewport"})
-    result["viewport"] = {"present": viewport is not None}
 
-    # Open Graph
-    og_tags = {}
-    for tag in soup.find_all("meta", attrs={"property": lambda x: x and x.startswith("og:")}):
-        og_tags[tag.get("property")] = tag.get("content", "")
-    required_og = ["og:title", "og:description", "og:image", "og:url", "og:type"]
-    result["open_graph"] = {
-        "tags": og_tags,
-        "present_count": len(og_tags),
-        "missing": [t for t in required_og if t not in og_tags],
-        "ok": all(t in og_tags for t in required_og),
-    }
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Inspect page metadata and semantic HTML without synthetic scores.")
+    parser.add_argument("urls", nargs="+")
+    parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument("--allow-private", action="store_true", help="Explicitly allow private/internal targets. Off by default to prevent SSRF.")
+    args = parser.parse_args()
+    try:
+        report = run(args.urls, args.allow_private, args.timeout)
+    except ValueError as exc:
+        json.dump({"schema_version": SCHEMA_VERSION, "status": "not_measured", "error": str(exc)}, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 2
+    json.dump(report, sys.stdout, ensure_ascii=False, indent=2)
+    sys.stdout.write("\n")
+    return 0
 
-    # Twitter Card
-    tw_tags = {}
-    for tag in soup.find_all("meta", attrs={"name": lambda x: x and x.startswith("twitter:")}):
-        tw_tags[tag.get("name")] = tag.get("content", "")
-    result["twitter_card"] = {
-        "tags": tw_tags,
-        "present": len(tw_tags) > 0,
-    }
-
-    # Headings hierarchy
-    headings = {}
-    for level in range(1, 7):
-        tags = soup.find_all(f"h{level}")
-        if tags:
-            headings[f"h{level}"] = [t.get_text(strip=True)[:80] for t in tags[:5]]
-    result["headings"] = {
-        "structure": headings,
-        "has_h1": "h1" in headings,
-        "h1_count": len(headings.get("h1", [])),
-        "ok": "h1" in headings and len(headings.get("h1", [])) == 1,
-    }
-
-    # Schema.org JSON-LD
-    schemas = []
-    for script in soup.find_all("script", type="application/ld+json"):
-        try:
-            data = json.loads(script.string)
-            if isinstance(data, list):
-                schemas.extend(data)
-            else:
-                schemas.append(data)
-        except (json.JSONDecodeError, TypeError):
-            pass
-    result["schema_jsonld"] = {
-        "count": len(schemas),
-        "types": [s.get("@type", "Unknown") for s in schemas],
-        "present": len(schemas) > 0,
-    }
-
-    # Images without alt
-    images = soup.find_all("img")
-    no_alt = [img.get("src", "")[:60] for img in images if not img.get("alt")]
-    result["images"] = {
-        "total": len(images),
-        "missing_alt": len(no_alt),
-        "examples_missing_alt": no_alt[:5],
-    }
-
-    # Internal links
-    links = soup.find_all("a", href=True)
-    result["links"] = {
-        "total": len(links),
-        "internal": sum(1 for l in links if l["href"].startswith("/") or url.split("/")[2] in l["href"]),
-        "external": sum(1 for l in links if l["href"].startswith("http") and url.split("/")[2] not in l["href"]),
-    }
-
-    # Calculate SEO score
-    score = 0
-    if result["title"]["ok"]: score += 15
-    elif result["title"]["value"]: score += 8
-    if result["meta_description"]["ok"]: score += 15
-    elif result["meta_description"]["value"]: score += 8
-    if result["canonical"]["present"]: score += 10
-    if result["viewport"]["present"]: score += 5
-    if result["open_graph"]["ok"]: score += 15
-    elif result["open_graph"]["present_count"] > 0: score += 8
-    if result["headings"]["ok"]: score += 15
-    elif result["headings"]["has_h1"]: score += 8
-    if result["schema_jsonld"]["present"]: score += 15
-    if result["images"]["missing_alt"] == 0: score += 10
-    elif result["images"]["missing_alt"] < 3: score += 5
-
-    result["seo_score"] = score
-    return result
-
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python seo_meta_check.py <url1> [url2] [url3] ...")
-        sys.exit(1)
-
-    urls = sys.argv[1:]
-    results = [analyze_page(url) for url in urls]
-
-    avg_score = sum(r.get("seo_score", 0) for r in results) / len(results) if results else 0
-
-    report = {
-        "pages_analyzed": len(results),
-        "average_seo_score": round(avg_score),
-        "results": results,
-    }
-
-    json.dump(report, sys.stdout, indent=2, ensure_ascii=False)
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

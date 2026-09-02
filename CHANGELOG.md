@@ -1,10 +1,6 @@
 # Changelog
 
-All notable changes to this skill are documented here. This file is the preferred human-readable source for update checks.
-
-| Date | Time | Version | Changes |
-|---|---|---|---|
-| 2026-06-11 | 12:00 GMT-3 | 2026.06.11 | Reworded robots.txt precedence line to avoid self-trigger, added auditable security note on subprocess usage, pinned requirements, and declared capabilities (network_egress, subprocess, dependency_install). |
-| 2026-06-12 | 14:07 GMT-3 | 2026.06.12 | Made the skill platform-agnostic: Phase 0 capability detection, fallback modes for the browser-dependent phases (AI visibility and navigation), PDF export chain with universal HTML fallback, relative path conventions replacing fixed Manus paths, requirements.txt, structured dependency error in seo_meta_check.py and a multi-platform usage section in the README. |
-| 2026-06-10 | 19:15 GMT-3 | 2026.06.10 | Synced shared version check protocol to v2: version source priority, HTTP and API check methods that work without Git, session cooldown rule, generalized regression-free update rule. |
-| 2026-06-02 | 09:02 GMT-3 | 2026.06.02 | Standardized the repository as an update-aware skill: added origin version check protocol, metadata, governance, contribution guidelines and local validation requirements. |
+| Date | Version | Changes |
+|---|---|---|
+| 2026-09-02 | 2026.09.02 | Rebuilt the toolkit around source-labeled evidence. Restored mandatory TLS validation, added SSRF and redirect protection, bounded fetches, removed subprocess and third-party Python dependencies, removed synthetic CRO/SEO/security/performance/GEO scores and Google-result scraping, separated crawler purposes, removed hardcoded vertical prompts/directories, added first-party measurement slots, generic controlled-query kit, regression tests and CI. |
+| 2026-06-11 | 2026.06.11 | Added autonomous scripts, capability declarations and report/dashboard workflow. Superseded because the scoring methodology overstated what static proxies could establish and one collector disabled TLS verification. |
